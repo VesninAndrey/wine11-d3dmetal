@@ -36,6 +36,7 @@ fetch gmp-6.3.0.tar.xz https://ftpmirror.gnu.org/gmp/gmp-6.3.0.tar.xz a3c2b80201
 fetch nettle-4.0.tar.gz https://ftpmirror.gnu.org/nettle/nettle-4.0.tar.gz 3addbc00da01846b232fb3bc453538ea5468da43033f21bb345cb1e9073f5094
 fetch gnutls-3.8.13.tar.xz https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-3.8.13.tar.xz ffed8ec1bf09c2426d4f14aae377de4753b53e537d685e604e99a8b16ca9c97e
 fetch freetype-2.15.0.tar.xz https://downloads.sourceforge.net/project/freetype/freetype2/2.15.0/freetype-2.15.0.tar.xz 93cd47eb719c325107f2d3cf087d06299e944c3b48a40b55537302304dea1dd5
+fetch MoltenVK-macos.tar https://github.com/KhronosGroup/MoltenVK/releases/download/v1.4.2/MoltenVK-macos.tar f95765a6229cb7b915990a2890ce12ebe36a730b021545d3d52ae69ce4c4024e
 fetch bison-3.8.2.tar.xz https://ftpmirror.gnu.org/bison/bison-3.8.2.tar.xz 9bba0214ccf7f1079c5d59210045227bcf619519840ebfa80cd3849cff5a5bf2
 
 say "Cross-compiler"
@@ -67,6 +68,13 @@ dep nettle nettle-4.0.tar.gz --enable-shared --disable-static --disable-document
 dep gnutls gnutls-3.8.13.tar.xz --enable-shared --disable-static --with-included-libtasn1 --with-included-unistring --without-p11-kit --without-idn --without-zlib --without-zstd --without-brotli --disable-doc --disable-tools --disable-tests --disable-cxx --disable-guile --disable-nls
 dep freetype freetype-2.15.0.tar.xz --enable-shared --disable-static --without-png --without-brotli --without-bzip2 --without-harfbuzz --without-zlib
 
+say "MoltenVK"
+if [ ! -f "$PFX/lib/libMoltenVK.dylib" ]; then
+  T="$WORK/moltenvk"; rm -rf "$T"; mkdir -p "$T"; tar xf "$DL/MoltenVK-macos.tar" -C "$T"
+  cp "$T/MoltenVK/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib" "$PFX/lib/" 2>/dev/null || cp "$(find "$T" -path '*macOS/libMoltenVK.dylib' | head -1)" "$PFX/lib/"
+  rm -rf "$T"
+fi
+
 say "Wine sources and patches"
 SRC="$WORK/wine-src"
 if [ ! -f "$SRC/.patched" ]; then
@@ -76,7 +84,7 @@ if [ ! -f "$SRC/.patched" ]; then
 fi
 
 say "Building Wine"
-B="$WORK/build"; mkdir -p "$B"
+B="$WORK/build-vulkan"; mkdir -p "$B"
 (
   cd "$B"
   # llvm-mingw goes last in PATH: its own clang does not know the macOS SDK
@@ -89,9 +97,7 @@ B="$WORK/build"; mkdir -p "$B"
     --without-alsa --without-capi --without-cups --without-dbus --without-ffmpeg --without-fontconfig \
     --without-gettext --without-gettextpo --without-gphoto --without-gssapi --without-gstreamer --without-inotify \
     --without-krb5 --without-netapi --without-oss --without-pcap --without-pulse --without-sane --without-sdl \
-    --without-udev --without-usb --without-v4l2 --without-vulkan --without-wayland --without-x > "$ROOT/logs/wine-configure.log" 2>&1
-  # win32u still references the library name when built without Vulkan
-  sed -i '' 's|/\* #undef SONAME_LIBVULKAN \*/|#define SONAME_LIBVULKAN "libvulkan.1.dylib"|' include/config.h
+    --without-udev --without-usb --without-v4l2 --with-vulkan --without-wayland --without-x > "$ROOT/logs/wine-configure.log" 2>&1
   nice -n 10 arch -x86_64 make -j"$J" > "$ROOT/logs/wine-build.log" 2>&1
   arch -x86_64 make install-lib >> "$ROOT/logs/wine-build.log" 2>&1
 )
@@ -122,5 +128,6 @@ done
 
 say "Test program"
 "$MG/bin/x86_64-w64-mingw32-clang" -O2 "$ROOT/test/d3dtest.c" -o "$ROOT/test/d3dtest.exe" -ld3d11 -ldxgi -ld3d12 -luser32 -luuid
+"$MG/bin/x86_64-w64-mingw32-clang" -O2 "$ROOT/test/vulkantest.c" -o "$ROOT/test/vulkantest.exe"
 "$OUT/bin/wine" --version
 say "Done. Next: ./run.sh test"

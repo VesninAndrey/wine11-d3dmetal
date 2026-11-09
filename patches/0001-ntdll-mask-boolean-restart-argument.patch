@@ -1,0 +1,14 @@
+--- a/dlls/ntdll/unix/sync.c
++++ b/dlls/ntdll/unix/sync.c
+@@ -2081,7 +2081,10 @@
+                                         ULONG *context, ULONG *ret_size )
+ {
+     unsigned int status, i, count, total_len, pos, used_size, used_count, strpool_head;
+-    ULONG index = restart ? 0 : *context;
++    /* PE callers only write the low byte of a BOOLEAN stack argument, while the host
++     * compiler assumes it is already extended, so read exactly one byte. */
++    volatile BOOLEAN restart_byte = restart;
++    ULONG index = restart_byte ? 0 : *context;
+     struct directory_entry *entries;
+ 
+     if (!(entries = malloc( size ))) return STATUS_NO_MEMORY;

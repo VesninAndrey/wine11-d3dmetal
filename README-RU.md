@@ -46,6 +46,12 @@ lib/wine/x86_64-windows/dxgi.dll   (и d3d10, d3d11, d3d12, atidxx64)
 
    В конце должно быть `D3D11 present loop 00000000 frames 120` и `END`.
 
+Vulkan работает через MoltenVK. Проверка:
+
+```bash
+./run.sh vulkan
+```
+
 После сборки папку можно перенести: `run.sh` находит свои файлы сам.
 
 ## Запуск программ
@@ -95,12 +101,11 @@ WINE_APPEND_ARGS='steamwebhelper.exe=--in-process-gpu' SteamNoOverlayUIDrawing=1
 
 | Что видите | В чём дело | Что сделать |
 |---|---|---|
-| Программа зависает, вечно спрашивая список дисков (например, Steam не подключается) | Вечный цикл в `GetLogicalDrives` | Правка `0001`, проверьте, что наложилась |
+| Программа зависает, вечно спрашивая список дисков (например, Steam не подключается) | Wine читает однобайтовый аргумент `BOOLEAN` как четыре байта | Правка `0001`, проверьте, что наложилась |
 | D3DMetal падает сразу | Нет переменных `CX_APPLEGPTK_LIBD3DSHARED_PATH` и `CX_ACTIVE_GRAPHICS_BACKEND` | Запускайте через `run.sh` или приложение |
 | Тест падает с `__wine_unix_call` | Используется обычный Wine без поддержки D3DMetal | Запускайте этот Wine |
 | Игра на Unity выбирает D3D12 и падает | Игра не пускает D3D12 при малом числе ядер под Wine | Добавьте `-force-d3d11` |
 | Ролики не играют | Сборка без GStreamer и ffmpeg | Это ограничение сборки |
-| Игре нужен Vulkan или DXVK | Сборка без Vulkan | Такие игры здесь не работают |
 
 Ошибки при сборке смотрите в `logs/` рядом с `setup.sh`. Запускайте установку заново: готовые шаги она пропустит.
 
@@ -114,11 +119,12 @@ WINE_APPEND_ARGS='steamwebhelper.exe=--in-process-gpu' SteamNoOverlayUIDrawing=1
 | nettle 4.0 | https://ftpmirror.gnu.org/nettle/nettle-4.0.tar.gz | `3addbc00da01846b232fb3bc453538ea5468da43033f21bb345cb1e9073f5094` |
 | gnutls 3.8.13 | https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-3.8.13.tar.xz | `ffed8ec1bf09c2426d4f14aae377de4753b53e537d685e604e99a8b16ca9c97e` |
 | freetype 2.15.0 | https://downloads.sourceforge.net/project/freetype/freetype2/2.15.0/freetype-2.15.0.tar.xz | `93cd47eb719c325107f2d3cf087d06299e944c3b48a40b55537302304dea1dd5` |
+| MoltenVK 1.4.2 | https://github.com/KhronosGroup/MoltenVK/releases/tag/v1.4.2 | `f95765a6229cb7b915990a2890ce12ebe36a730b021545d3d52ae69ce4c4024e` |
 | bison 3.8.2, только для сборки | https://ftpmirror.gnu.org/bison/bison-3.8.2.tar.xz | `9bba0214ccf7f1079c5d59210045227bcf619519840ebfa80cd3849cff5a5bf2` |
 
 Правки в `patches/`:
 
-- `0001` — выход из вечного цикла в `GetLogicalDrives`. Цикл по каталогу `\DosDevices` не заканчивается, потому что счётчик обхода перестаёт расти. Причина остановки счётчика не найдена, правка только выходит из цикла и находит диски по буквам.
+- `0001` — исправляет вечный цикл в `GetLogicalDrives`. Windows-код записывает только младший байт аргумента `restart` типа `BOOLEAN` у `NtQueryDirectoryObject`, а компилятор macOS считает старшие байты нулями и проверяет все четыре. Мусор в стеке заставляет каждый вызов начинать обход сначала. Такая же ошибка может быть у других аргументов `BOOLEAN` в системных вызовах.
 - `0002` — настройка `WINE_APPEND_ARGS`.
 
 Сборка ничего не обновляет и не скачивает при запуске.

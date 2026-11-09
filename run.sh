@@ -1,5 +1,6 @@
 #!/bin/zsh
 # ./run.sh test                  check D3D11 and D3D12 through D3DMetal
+# ./run.sh vulkan                check Vulkan through MoltenVK
 # ./run.sh wine command [args]   any Wine command (wine winecfg, wine C:\path\game.exe)
 # ./run.sh exe file [args]       run a Windows program from a Mac path, in its own folder
 # ./run.sh wait                  wait until every program in the prefix exits
@@ -24,9 +25,10 @@ first_run() {
 
 case "$1" in
   test) first_run; "$WINE" "$ROOT/test/d3dtest.exe" 2>&1 ;;
+  vulkan) first_run; "$WINE" "$ROOT/test/vulkantest.exe" 2>&1 ;;
   wine) first_run; shift; exec "$WINE" "$@" ;;
   exe) first_run; shift; cd "${1:h}"; exec "$WINE" "${1:t}" "${@:2}" ;;
   wait) "$W/bin/wineserver" -w ;;
   stop) "$W/bin/wineserver" -k ;;
-  *) sed -n 2,7p "$0" ;;
+  *) sed -n 2,8p "$0" ;;
 esac

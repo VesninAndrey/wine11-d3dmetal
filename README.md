@@ -46,6 +46,12 @@ Tested with `Game Porting Toolkit.app/Contents/Resources/wine` from [Gcenx/game-
 
    The output should end with `D3D11 present loop 00000000 frames 120` and `END`.
 
+Vulkan works through MoltenVK. To check it:
+
+```bash
+./run.sh vulkan
+```
+
 After the build the folder can be moved: `run.sh` finds its own files.
 
 ## Running programs
@@ -95,12 +101,11 @@ WINE_APPEND_ARGS='steamwebhelper.exe=--in-process-gpu' SteamNoOverlayUIDrawing=1
 
 | What you see | Cause | What to do |
 |---|---|---|
-| A program hangs while listing drives (for example, Steam never connects) | An endless loop in `GetLogicalDrives` | Patch `0001`, check that it applied |
+| A program hangs while listing drives (for example, Steam never connects) | Wine reads a one-byte `BOOLEAN` argument as four bytes | Patch `0001`, check that it applied |
 | D3DMetal crashes immediately | `CX_APPLEGPTK_LIBD3DSHARED_PATH` and `CX_ACTIVE_GRAPHICS_BACKEND` are not set | Launch through `run.sh` or the app |
 | The test fails with `__wine_unix_call` | Plain Wine without D3DMetal support is being used | Use this Wine |
 | A Unity game picks D3D12 and crashes | The game rejects D3D12 at the low core count it sees under Wine | Add `-force-d3d11` |
 | Videos do not play | Built without GStreamer and ffmpeg | A limitation of this build |
-| A game needs Vulkan or DXVK | Built without Vulkan | Such games do not work here |
 
 Build errors are in `logs/` next to `setup.sh`. Re-run setup: finished steps are skipped.
 
@@ -114,11 +119,12 @@ Build errors are in `logs/` next to `setup.sh`. Re-run setup: finished steps are
 | nettle 4.0 | https://ftpmirror.gnu.org/nettle/nettle-4.0.tar.gz | `3addbc00da01846b232fb3bc453538ea5468da43033f21bb345cb1e9073f5094` |
 | gnutls 3.8.13 | https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-3.8.13.tar.xz | `ffed8ec1bf09c2426d4f14aae377de4753b53e537d685e604e99a8b16ca9c97e` |
 | freetype 2.15.0 | https://downloads.sourceforge.net/project/freetype/freetype2/2.15.0/freetype-2.15.0.tar.xz | `93cd47eb719c325107f2d3cf087d06299e944c3b48a40b55537302304dea1dd5` |
+| MoltenVK 1.4.2 | https://github.com/KhronosGroup/MoltenVK/releases/tag/v1.4.2 | `f95765a6229cb7b915990a2890ce12ebe36a730b021545d3d52ae69ce4c4024e` |
 | bison 3.8.2, build only | https://ftpmirror.gnu.org/bison/bison-3.8.2.tar.xz | `9bba0214ccf7f1079c5d59210045227bcf619519840ebfa80cd3849cff5a5bf2` |
 
 Patches in `patches/`:
 
-- `0001` exits the endless loop in `GetLogicalDrives`. The walk over `\DosDevices` never ends because its counter stops advancing. Why the counter stops is unknown: the patch only leaves the loop and finds drives by letter.
+- `0001` fixes an endless loop in `GetLogicalDrives`. Windows code writes only the low byte of the `BOOLEAN` `restart` argument of `NtQueryDirectoryObject`, but the macOS compiler assumes the upper bytes are zero and tests all four. Stack garbage in them makes every call restart from the first entry. The same pattern may affect other `BOOLEAN` syscall arguments.
 - `0002` adds the `WINE_APPEND_ARGS` setting.
 
 The build does not update itself or download anything at run time.
