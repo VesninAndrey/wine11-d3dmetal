@@ -12,7 +12,7 @@ Tested on Apple M5 Pro, macOS 26.5.2.
 - Rosetta 2: `softwareupdate --install-rosetta --agree-to-license`
 - Command Line Tools: `xcode-select --install`
 - pkg-config: `brew install pkgconf`
-- 8 GB of free disk space.
+- 14 GB of free disk space.
 - A folder with Apple's D3DMetal, see below.
 
 ## Getting D3DMetal
@@ -46,11 +46,17 @@ Tested with `Game Porting Toolkit.app/Contents/Resources/wine` from [Gcenx/game-
 
    The output should end with `D3D11 present loop 00000000 frames 120` and `END`.
 
-Vulkan works through MoltenVK. To check it:
+Vulkan works through MoltenVK, video through GStreamer. To check them:
 
 ```bash
 ./run.sh vulkan
 ```
+
+```bash
+./run.sh video /path/to/clip.mp4
+```
+
+The first video run scans the GStreamer plugins and may look stuck. It should end with `frames` above zero and `END`.
 
 After the build the folder can be moved: `run.sh` finds its own files.
 
@@ -105,7 +111,6 @@ WINE_APPEND_ARGS='steamwebhelper.exe=--in-process-gpu' SteamNoOverlayUIDrawing=1
 | D3DMetal crashes immediately | `CX_APPLEGPTK_LIBD3DSHARED_PATH` and `CX_ACTIVE_GRAPHICS_BACKEND` are not set | Launch through `run.sh` or the app |
 | The test fails with `__wine_unix_call` | Plain Wine without D3DMetal support is being used | Use this Wine |
 | A Unity game picks D3D12 and crashes | The game rejects D3D12 at the low core count it sees under Wine | Add `-force-d3d11` |
-| Videos do not play | Built without GStreamer and ffmpeg | A limitation of this build |
 
 Build errors are in `logs/` next to `setup.sh`. Re-run setup: finished steps are skipped.
 
@@ -120,6 +125,8 @@ Build errors are in `logs/` next to `setup.sh`. Re-run setup: finished steps are
 | gnutls 3.8.13 | https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-3.8.13.tar.xz | `ffed8ec1bf09c2426d4f14aae377de4753b53e537d685e604e99a8b16ca9c97e` |
 | freetype 2.15.0 | https://downloads.sourceforge.net/project/freetype/freetype2/2.15.0/freetype-2.15.0.tar.xz | `93cd47eb719c325107f2d3cf087d06299e944c3b48a40b55537302304dea1dd5` |
 | MoltenVK 1.4.2 | https://github.com/KhronosGroup/MoltenVK/releases/tag/v1.4.2 | `f95765a6229cb7b915990a2890ce12ebe36a730b021545d3d52ae69ce4c4024e` |
+| GStreamer 1.28.1 runtime | https://gstreamer.freedesktop.org/data/pkg/osx/1.28.1/gstreamer-1.0-1.28.1-universal.pkg | `02803f73435daabe8fb12b79c38c6775d0efb83af001474558ba25c4f874d305` |
+| GStreamer 1.28.1 devel, build only | https://gstreamer.freedesktop.org/data/pkg/osx/1.28.1/gstreamer-1.0-devel-1.28.1-universal.pkg | `df167b41559afbcd743276c6b068cba2ada8f5b69eb68095415a7a5a7515e52c` |
 | bison 3.8.2, build only | https://ftpmirror.gnu.org/bison/bison-3.8.2.tar.xz | `9bba0214ccf7f1079c5d59210045227bcf619519840ebfa80cd3849cff5a5bf2` |
 
 Patches in `patches/`:

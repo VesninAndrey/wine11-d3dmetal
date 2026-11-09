@@ -16,7 +16,7 @@ arch -x86_64 /usr/bin/true 2>/dev/null || die "Rosetta 2 is missing. Install it:
 xcode-select -p >/dev/null 2>&1 || die "Command Line Tools are missing. Install them: xcode-select --install"
 PKGCONFIG=$(command -v pkg-config || true); [ -n "$PKGCONFIG" ] || PKGCONFIG=/opt/homebrew/bin/pkg-config
 [ -x "$PKGCONFIG" ] || die "pkg-config is missing. Install it: brew install pkgconf"
-FREE=$(df -g "$ROOT" | awk 'END{print $4}'); [ "$FREE" -ge 8 ] || die "at least 8 GB of free space is required, found $FREE GB"
+FREE=$(df -g "$ROOT" | awk 'END{print $4}'); [ "$FREE" -ge 14 ] || die "at least 14 GB of free space is required, found $FREE GB"
 
 GPTK="${1:-${D3DMETAL_SRC:-/Applications/Game Porting Toolkit.app/Contents/Resources/wine}}"
 [ -d "$GPTK/lib/external/D3DMetal.framework" ] && [ -f "$GPTK/lib/external/libd3dshared.dylib" ] && [ -f "$GPTK/lib/wine/x86_64-windows/dxgi.dll" ] ||
@@ -28,7 +28,7 @@ for f in D3DMetal.framework libd3dshared.dylib; do
 done
 
 mkdir -p "$DL" "$PFX" "$ROOT/logs"
-fetch() { local f="$DL/$1"; [ -f "$f" ] || curl -fL --retry 3 -o "$f" "$2"; echo "$3  $f" | shasum -a 256 -c - >/dev/null || die "checksum mismatch: $1"; }
+fetch() { local f="$DL/$1" i; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do echo "$3  $f" | shasum -a 256 -c - >/dev/null 2>&1 && return 0; curl -fL --retry 3 -C - -o "$f" "$2" || true; done; die "download failed or checksum mismatch: $1"; }
 say "Downloading sources"
 fetch crossover-sources-26.3.0.tar.gz https://media.codeweavers.com/pub/crossover/source/crossover-sources-26.3.0.tar.gz ac99c8ca4b3848f3e81784135f023df266b61c2345726ea55a50b3e030dd6872
 fetch llvm-mingw.tar.xz https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/llvm-mingw-20261104-ucrt-macos-universal.tar.xz 66cbd5178c4a71b0d473e68ede172f8eb7d15d023e67f39201d0a69e21f6bf3c
@@ -37,6 +37,8 @@ fetch nettle-4.0.tar.gz https://ftpmirror.gnu.org/nettle/nettle-4.0.tar.gz 3addb
 fetch gnutls-3.8.13.tar.xz https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-3.8.13.tar.xz ffed8ec1bf09c2426d4f14aae377de4753b53e537d685e604e99a8b16ca9c97e
 fetch freetype-2.15.0.tar.xz https://downloads.sourceforge.net/project/freetype/freetype2/2.15.0/freetype-2.15.0.tar.xz 93cd47eb719c325107f2d3cf087d06299e944c3b48a40b55537302304dea1dd5
 fetch MoltenVK-macos.tar https://github.com/KhronosGroup/MoltenVK/releases/download/v1.4.2/MoltenVK-macos.tar f95765a6229cb7b915990a2890ce12ebe36a730b021545d3d52ae69ce4c4024e
+fetch gstreamer-1.0-1.28.1-universal.pkg https://gstreamer.freedesktop.org/data/pkg/osx/1.28.1/gstreamer-1.0-1.28.1-universal.pkg 02803f73435daabe8fb12b79c38c6775d0efb83af001474558ba25c4f874d305
+fetch gstreamer-1.0-devel-1.28.1-universal.pkg https://gstreamer.freedesktop.org/data/pkg/osx/1.28.1/gstreamer-1.0-devel-1.28.1-universal.pkg df167b41559afbcd743276c6b068cba2ada8f5b69eb68095415a7a5a7515e52c
 fetch bison-3.8.2.tar.xz https://ftpmirror.gnu.org/bison/bison-3.8.2.tar.xz 9bba0214ccf7f1079c5d59210045227bcf619519840ebfa80cd3849cff5a5bf2
 
 say "Cross-compiler"
@@ -75,6 +77,18 @@ if [ ! -f "$PFX/lib/libMoltenVK.dylib" ]; then
   rm -rf "$T"
 fi
 
+say "GStreamer"
+GS="$WORK/gstreamer"; GS_RUNTIME="base-system-1.0 base-crypto gstreamer-1.0-core gstreamer-1.0-system gstreamer-1.0-playback gstreamer-1.0-codecs gstreamer-1.0-codecs-restricted gstreamer-1.0-libav gstreamer-1.0-net gstreamer-1.0-effects"
+if [ ! -f "$GS/.done" ]; then
+  X="$WORK/gst-expand"; rm -rf "$X" "$GS"; mkdir -p "$X" "$GS"
+  pkgutil --expand-full "$DL/gstreamer-1.0-1.28.1-universal.pkg" "$X/rt"
+  pkgutil --expand-full "$DL/gstreamer-1.0-devel-1.28.1-universal.pkg" "$X/dev"
+  for p in $GS_RUNTIME; do ditto "$X/rt/$p-1.28.1-universal.pkg/Payload" "$GS"; done
+  for p in base-system-1.0-devel gstreamer-1.0-core-devel; do ditto "$X/dev/$p-1.28.1-universal.pkg/Payload/include" "$GS/include"; ditto "$X/dev/$p-1.28.1-universal.pkg/Payload/lib/pkgconfig" "$GS/lib/pkgconfig"; done
+  ditto "$X/dev/base-system-1.0-devel-1.28.1-universal.pkg/Payload/lib/glib-2.0" "$GS/lib/glib-2.0"
+  rm -rf "$X"; touch "$GS/.done"
+fi
+
 say "Wine sources and patches"
 SRC="$WORK/wine-src"
 if [ ! -f "$SRC/.patched" ]; then
@@ -84,18 +98,18 @@ if [ ! -f "$SRC/.patched" ]; then
 fi
 
 say "Building Wine"
-B="$WORK/build-vulkan"; mkdir -p "$B"
+B="$WORK/build-gstreamer"; mkdir -p "$B"
 (
   cd "$B"
   # llvm-mingw goes last in PATH: its own clang does not know the macOS SDK
   export PATH="$PFX/hostbin:/usr/bin:/bin:/usr/sbin:/sbin:$MG/bin"
   export MACOSX_DEPLOYMENT_TARGET=14.0 CC="clang -arch x86_64" CXX="clang++ -arch x86_64" OBJC="clang -arch x86_64"
   export CFLAGS="-O2" CXXFLAGS="-O2" OBJCFLAGS="-O2" CROSSCFLAGS="-O2" LDFLAGS="-L$PFX/lib" CPPFLAGS="-I$PFX/include"
-  export PKG_CONFIG="$PKGCONFIG" PKG_CONFIG_LIBDIR="$PFX/lib/pkgconfig" PKG_CONFIG_PATH="" BISON="$PFX/hostbin/bison"
+  export PKG_CONFIG="$PKGCONFIG" PKG_CONFIG_LIBDIR="$PFX/lib/pkgconfig:$GS/lib/pkgconfig" PKG_CONFIG_PATH="" BISON="$PFX/hostbin/bison"
   [ -f Makefile ] || arch -x86_64 "$SRC/configure" --prefix="$OUT" --enable-win64 --enable-archs=i386,x86_64 --disable-tests \
     --with-mingw="$MG/bin/clang" --with-coreaudio --with-freetype --with-gnutls --with-pcsclite --with-opencl --with-pthread \
     --without-alsa --without-capi --without-cups --without-dbus --without-ffmpeg --without-fontconfig \
-    --without-gettext --without-gettextpo --without-gphoto --without-gssapi --without-gstreamer --without-inotify \
+    --without-gettext --without-gettextpo --without-gphoto --without-gssapi --with-gstreamer --without-inotify \
     --without-krb5 --without-netapi --without-oss --without-pcap --without-pulse --without-sane --without-sdl \
     --without-udev --without-usb --without-v4l2 --with-vulkan --without-wayland --without-x > "$ROOT/logs/wine-configure.log" 2>&1
   nice -n 10 arch -x86_64 make -j"$J" > "$ROOT/logs/wine-build.log" 2>&1
@@ -116,6 +130,10 @@ say "Relocatable copy of the libraries"
 # The build needs libraries with full paths, so only a separate copy is made relocatable
 FINAL="$ROOT/deps"; rm -rf "$FINAL"; mkdir -p "$FINAL"; cp -Rc "$PFX/lib" "$FINAL/lib"
 rm -rf "$FINAL/lib/pkgconfig" "$FINAL"/lib/*.la
+G="$FINAL/gstreamer"; mkdir -p "$G/lib" "$G/libexec"
+cp -Rc "$GS"/lib/*.dylib "$G/lib/"
+cp -Rc "$GS/lib/gstreamer-1.0" "$G/lib/gstreamer-1.0"
+cp -Rc "$GS/libexec/gstreamer-1.0" "$G/libexec/gstreamer-1.0"
 for f in "$FINAL"/lib/*.dylib; do
   [ -L "$f" ] && continue
   chmod u+w "$f"
@@ -129,5 +147,6 @@ done
 say "Test program"
 "$MG/bin/x86_64-w64-mingw32-clang" -O2 "$ROOT/test/d3dtest.c" -o "$ROOT/test/d3dtest.exe" -ld3d11 -ldxgi -ld3d12 -luser32 -luuid
 "$MG/bin/x86_64-w64-mingw32-clang" -O2 "$ROOT/test/vulkantest.c" -o "$ROOT/test/vulkantest.exe"
+"$MG/bin/x86_64-w64-mingw32-clang" -municode -O2 "$ROOT/test/mftest.c" -o "$ROOT/test/mftest.exe" -lmfplat -lmfreadwrite -lmfuuid -lole32
 "$OUT/bin/wine" --version
 say "Done. Next: ./run.sh test"
