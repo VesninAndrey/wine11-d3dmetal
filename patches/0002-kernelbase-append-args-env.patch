@@ -1,0 +1,41 @@
+--- a/dlls/kernelbase/process.c
++++ b/dlls/kernelbase/process.c
+@@ -543,6 +543,38 @@
+     {
+         if (!(tidy_cmdline = get_file_name( cmd_line, name, ARRAY_SIZE(name) ))) return FALSE;
+         app_name = name;
++    }
++
++    /* WINE_APPEND_ARGS="name.exe=--some-flag;other.exe=--flag" adds arguments to the
++     * command line of matching programs, for flags a parent process does not pass on. */
++    {
++        WCHAR spec[1024], *item, *next, *sep;
++        DWORD spec_len = GetEnvironmentVariableW( L"WINE_APPEND_ARGS", spec, ARRAY_SIZE(spec) );
++
++        if (tidy_cmdline && spec_len && spec_len < ARRAY_SIZE(spec))
++        {
++            for (item = spec; item && *item; item = next)
++            {
++                if ((next = wcschr( item, ';' ))) *next++ = 0;
++                if (!(sep = wcschr( item, '=' ))) continue;
++                *sep++ = 0;
++                if (wcsstr( tidy_cmdline, item ) && !wcsstr( tidy_cmdline, sep ))
++                {
++                    SIZE_T len = lstrlenW( tidy_cmdline ) + lstrlenW( sep ) + 2;
++                    WCHAR *cmd = RtlAllocateHeap( GetProcessHeap(), 0, len * sizeof(WCHAR) );
++
++                    if (cmd)
++                    {
++                        lstrcpyW( cmd, tidy_cmdline );
++                        lstrcatW( cmd, L" " );
++                        lstrcatW( cmd, sep );
++                        if (tidy_cmdline != cmd_line) HeapFree( GetProcessHeap(), 0, tidy_cmdline );
++                        tidy_cmdline = cmd;
++                    }
++                    break;
++                }
++            }
++        }
+     }
+ 
+     /* CW Hack 24938 */

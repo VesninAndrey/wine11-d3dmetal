@@ -1,0 +1,9 @@
+.work/
+wine/
+deps/
+prefix/
+test/*.exe
+logs/
+logs-setup.txt
+SteamSetup.exe
+logs-setup2.txt
